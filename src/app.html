@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>牛牛文档工具</title>
+<style>
+  :root {
+    --win-bg: #F3F3F3;
+    --card-bg: #FFFFFF;
+    --card-hover: #F5F5F5;
+    --input-bg: #FFFFFF;
+    --text-1: #1B1B1B;
+    --text-2: #5C5C5C;
+    --text-3: #8A8A8A;
+    --accent: #0078D4;
+    --accent-hover: #106EBE;
+    --accent-light: #EAF3FB;
+    --accent-2: #5AA9E6;
+    --border: #E1E1E1;
+    --divider: #EAEAEA;
+    --check-border: #767676;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 4px 12px rgba(0,0,0,.06);
+    --shadow-app: 0 8px 24px rgba(0,0,0,.10);
+    --success: #0E700E;
+    --success-bg: #E7F7ED;
+    --danger: #B10E1C;
+    --radius: 10px;
+    --r-sm: 4px;
+    --r-md: 8px;
+    --r-lg: 10px;
+  }
+  [data-theme="dark"] {
+    --win-bg: #202020;
+    --card-bg: #2B2B2B;
+    --card-hover: #333333;
+    --input-bg: #1F1F1F;
+    --text-1: #F3F3F3;
+    --text-2: #B5B5B5;
+    --text-3: #8A8A8A;
+    --accent: #4CC2FF;
+    --accent-hover: #62B9E8;
+    --accent-light: #163A4D;
+    --accent-2: #2E7FA8;
+    --border: #3B3B3B;
+    --divider: #363636;
+    --check-border: #9CA3AF;
+    --shadow: 0 1px 3px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.3);
+    --shadow-app: 0 10px 32px rgba(0,0,0,.45);
+    --success: #56D97E;
+    --success-bg: #0E3A1E;
+    --danger: #F1707B;
+    --radius: 10px;
+  }
+  [data-theme="dark"] .seg button.on { color: #202020; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei UI', system-ui, -apple-system, sans-serif;
+    background: var(--win-bg); color: var(--text-1); overflow: hidden;
+  }
+  /* v2.1.7 窗口改为直角满铺：实测 WebView2 (EdgeChromium) 与 Win32 分层窗口
+     (TransparencyKey/WS_EX_LAYERED) 和 SetWindowRgn 圆角裁剪均不兼容（内容整体
+     变黑），transparent=True 时透明区也只显示宿主 Form 灰底 #F0F0F0 而非桌面；
+     Win10 LTSC 又无 DWMWA_WINDOW_RADIUS 系统圆角 API。故窗口圆角在当前技术栈
+     下不可实现，改用 frameless + DWM 系统阴影的原生直角观感（同 Win10 标准）。 */
+  .app-shell { width: 100vw; height: 100vh; background: var(--win-bg); }
+  .app {
+    /* frameless 窗口的系统阴影由 pywebview shadow=True（默认）启用 DWM 投影提供，
+       .app 满铺 100% 无边距，box-shadow 无可见效果，故不使用 --shadow-app。
+       --shadow-app 变量仅供 .toast 等浮层元素使用。台账 260829-04 已关闭。 */
+    width: 100%; height: 100%; background: var(--win-bg);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  /* 标题栏 */
+  .titlebar {
+    height: 46px; background: var(--card-bg); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 12px; gap: 10px; flex-shrink: 0;
+  }
+  .titlebar .logo { font-size: 18px; }
+  .titlebar .name { font-weight: 700; font-size: 14px; letter-spacing: .3px;
+    background: linear-gradient(90deg,var(--accent),var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .titlebar .ver { font-size: 11px; color: var(--text-3); margin-left: 2px; }
+  .titlebar .title-drag { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; }
+  .titlebar .search {
+    margin-left: auto; width: 230px; height: 30px; background: var(--input-bg);
+    border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 10px; color: var(--text-2);
+    font-size: 12px; font-family: inherit; outline: none;
+  }
+  .titlebar .search::placeholder { color: var(--text-3); }
+  .titlebar .search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .titlebar .iconbtn {
+    width: 32px; height: 32px; border-radius: var(--r-md); display: flex; align-items: center;
+    justify-content: center; cursor: pointer; color: var(--text-2); font-size: 15px;
+    border: 1px solid transparent; background: transparent; margin-left: auto;
+  }
+  .titlebar .iconbtn:hover { background: var(--card-hover); }
+  .titlebar .sysbtn {
+    width: 40px; height: 32px; border: none; background: transparent; color: var(--text-1);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-family: inherit;
+  }
+  .titlebar .sysbtn:hover { background: var(--card-hover); }
+  .titlebar .sysbtn.close:hover { background: #C42B1C; color: #fff; }
+  /* 三个系统按钮用 SVG 画图（v2.1.4 的 CSS-drawn span 在浅色背景下对比度太低，
+     用户报告"最大化/关闭看着像撇号不像符号"）。SVG 描边可控、跨主题一致。 */
+  .titlebar .sysbtn svg { width: 14px; height: 14px; display: block; stroke: currentColor;
+    fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .titlebar .sysbtn .i-min { stroke-width: 1.6; }
+  .titlebar .sysbtn .i-max { stroke-width: 1.5; }
+  .titlebar .sysbtn .i-close { stroke-width: 1.6; }
+
+  .body { flex: 1; display: flex; min-height: 0; }
+  /* 侧边栏 */
+  .sidebar {
+    width: 236px; background: var(--card-bg); border-right: 1px solid var(--border);
+    padding: 10px 8px; overflow-y: auto; flex-shrink: 0;
+    display: flex; flex-direction: column;
+  }
+  .side-top { display: flex; align-items: center; gap: 6px; padding: 0 2px 8px; }
+  .side-search {
+    flex: 1; min-width: 0; height: 30px; background: var(--input-bg);
+    border: 1px solid var(--border); border-radius: var(--r-md); padding: 0 10px;
+    font-size: 12px; color: var(--text-2); font-family: inherit; outline: none;
+  }
+  .side-search::placeholder { color: var(--text-3); }
+  .side-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  /* v2.1.9 搜索框清除按钮 */
+  .side-search-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+  .side-search-wrap .side-search { flex: 1; }
+  .side-search-wrap.has-value .side-search { padding-right: 28px; }
+  .search-clear {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 17px; height: 17px; padding: 0; border: none; border-radius: 50%;
+    background: var(--card-hover); color: var(--text-3); cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+  }
+  .side-search-wrap.has-value .search-clear { display: flex; }
+  .search-clear:hover { background: var(--border); color: var(--text-1); }
+  .search-clear svg { width: 9px; height: 9px; display: block;
+    stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+  /* v2.1.9 toast 轻量提示 */
+  .toast {
+    position: fixed; top: 60px; right: 20px; z-index: 9999;
+    background: var(--card-bg); color: var(--text-1); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: 12px 18px; font-size: 13px; box-shadow: var(--shadow-app);
+    max-width: 360px; opacity: 0; transform: translateX(20px); transition: opacity .25s, transform .25s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(0); }
+  /* v2.1.9 busy 状态禁用文件交互 */
+  .app.busy .dropzone, .app.busy .file-chip .x, .app.busy .btn-ghost.addbtn { pointer-events: none; opacity: .6; }
+  .side-group-title {
+    font-size: 11px; font-weight: 700; color: var(--text-3);
+    padding: 12px 12px 6px; letter-spacing: .5px;
+  }
+  .side-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--r-md);
+    font-size: 13px; color: var(--text-2); cursor: pointer; margin: 1px 0; user-select: none;
+  }
+  .side-item .ic { width: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+  .side-item .ic svg { width: 16px; height: 16px; display: block; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+  .side-item.active .ic { color: var(--accent); }
+  .side-item .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-item:hover { background: var(--card-hover); color: var(--text-1); }
+  .side-item.active { background: var(--accent-light); color: var(--accent); font-weight: 600; }
+  .side-item .tag { flex-shrink: 0; font-size: 11px; color: var(--text-3); background: var(--card-hover); border: 1px solid var(--border); border-radius: var(--radius); padding: 1px 7px; white-space: nowrap; }
+
+  /* 工作区 */
+  /* v2.2.2: workspace 不再滚动，滚动职责下放 .ws-scroll；执行条(#ws-content 尾部)
+     因此固定在可视区底部，窗口缩放时不会被内容滚出视野 */
+  .workspace { flex: 1; padding: 16px 20px; overflow: hidden; min-width: 0; display: flex; flex-direction: column; }
+  #ws-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  /* v2.2.2: 内容滚动区（ws-head + ws-grid），执行条在其外固定底部 */
+  #ws-content .ws-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .ws-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .ws-head .t { font-size: 19px; font-weight: 700; }
+  .ws-head .fmt { font-size: 11px; color: var(--accent); background: var(--accent-light); border-radius: var(--radius); padding: 2px 9px; font-weight: 600; }
+  .ws-head .d { font-size: 12.5px; color: var(--text-2); margin-top: 4px; width: 100%; line-height: 1.5; }
+
+  .ws-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
+  .ws-grid > div:nth-child(2) { display: flex; flex-direction: column; }
+  .ws-grid > div:nth-child(2) > .card { flex: 1; }
+  .card {
+    background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; box-shadow: var(--shadow); transition: box-shadow .15s, transform .15s;
+  }
+  .card:hover { box-shadow: 0 6px 18px rgba(0,0,0,.1); }
+  .card .ct {
+    font-size: 12px; font-weight: 700; color: var(--text-2); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  /* v2.2.3: 卡片标题右侧的补充说明（如"待处理 N 个文件"）。
+     放在标题行右侧、与拖放区/文件列表同处一卡，比塞在底部执行条更贴近语义。 */
+  .card .ct .ct-extra {
+    margin-left: auto; font-weight: 400; font-size: 11.5px; color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .dropzone {
+    border: 1.5px solid var(--border); border-radius: var(--r-md);
+    padding: 20px; text-align: center; color: var(--text-3); font-size: 13px;
+    background: var(--win-bg); cursor: pointer; transition: .15s;
+  }
+  /* idle 用 solid 边框（dashed + 圆角天生锯齿），hover/dragover 才显示虚线（v2.1.6） */
+  .dropzone:hover, .dropzone.dragover { border-style: dashed; border-color: var(--accent); background: var(--accent-light); }
+  .dropzone .big { font-size: 26px; color: var(--accent); display: block; margin-bottom: 6px; }
+  .file-chip {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-top: 8px;
+    background: var(--win-bg); border: 1px solid var(--border); border-radius: var(--r-md); font-size: 12.5px;
+  }
+  .file-chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .file-chip .dot.need { background: var(--danger); }
+  .file-chip .dot.ok { background: var(--success); }
+  .file-chip .fname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-chip .meta { color: var(--text-3); font-size: 11.5px; flex-shrink: 0; }
+  .file-chip .x { color: var(--text-3); cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+  .file-chip .x:hover { color: var(--danger); }
+
+  .prow { display: flex; align-items: center; gap: 12px; margin: 13px 0; flex-wrap: wrap; }
+  .prow .pl { font-size: 12.5px; color: var(--text-2); min-width: 70px; }
+  .prow .ph { font-size: 11.5px; color: var(--text-3); line-height: 1.4; }
+  .entry {
+    height: 32px; background: var(--input-bg); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: 0 10px; font-size: 12.5px; color: var(--text-1);
+    min-width: 160px; display: inline-flex; align-items: center; font-family: inherit; outline: none;
+  }
+  .entry:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--input-bg); }
+  .seg button {
+    border: none; background: transparent; padding: 7px 13px; font-size: 12.5px;
+    color: var(--text-2); cursor: pointer; border-right: 1px solid var(--border); font-family: inherit;
+  }
+  .seg button:last-child { border-right: none; }
+  .seg button.on { background: var(--accent); color: #fff; font-weight: 600; }
+  .seg button:hover:not(.on) { background: var(--accent-light); color: var(--accent); }
+  .checkbox {
+    display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-1);
+    cursor: pointer; user-select: none;
+  }
+  .checkbox .box {
+    width: 16px; height: 16px; border-radius: var(--r-sm); border: 1.5px solid var(--check-border);
+    box-sizing: border-box; background: var(--input-bg); display: inline-flex;
+    align-items: center; justify-content: center; flex-shrink: 0; transition: .15s;
+  }
+  .checkbox .box svg { width: 11px; height: 11px; display: none; }
+  .checkbox.on .box { background: var(--accent); border-color: var(--accent); }
+  .checkbox.on .box svg { display: block; }
+  [data-theme="dark"] .checkbox.on .box svg { stroke: #202020; }
+
+  .btn-primary {
+    background: linear-gradient(180deg,var(--accent),var(--accent-hover)); color: #fff;     border: none;
+    border-radius: var(--r-md); height: 40px; padding: 0 24px; font-size: 13.5px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: inherit;
+    box-shadow: 0 2px 6px rgba(0,120,212,.3);
+  }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent; color: var(--text-2); border: 1px solid var(--border);
+    border-radius: var(--r-md); height: 40px; padding: 0 18px; font-size: 13px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; font-family: inherit;
+  }
+  .btn-ghost:hover { background: var(--card-hover); color: var(--text-1); }
+  .btn-ghost.browse { height: 32px; padding: 0 14px; font-size: 12.5px; }
+  .btn-ghost.addbtn { height: 32px; padding: 0 14px; font-size: 12.5px; margin-top: 10px; }
+
+  /* 底部执行条 */
+  .action-bar {
+    display: flex; align-items: center; gap: 12px; margin-top: auto; padding-top: 14px;
+    border-top: 1px solid var(--border); flex-wrap: wrap;
+  }
+  /* v2.1.8：进度条空状态隐藏，仅在有进度事件时加 .show 显示，
+     消除"开始转换按钮上方"常驻的 6px 灰色轨道横线 */
+  .action-bar .progress { flex-basis: 100%; height: 6px; background: var(--card-hover); border-radius: var(--r-sm); overflow: hidden; display: none; }
+  .action-bar .progress.show { display: block; }
+  .action-bar .progress .bar { height: 100%; width: 0; background: linear-gradient(90deg,var(--accent),var(--accent-2)); border-radius: var(--r-sm); transition: width .2s; }
+  .action-bar .status { font-size: 12px; color: var(--text-2); }
+  .action-bar .right { margin-left: auto; display: flex; gap: 12px; }
+  .pill { background: var(--success-bg); color: var(--success); font-size: 11px; padding: 2px 8px; border-radius: var(--radius); font-weight: 600; }
+
+  .hint-row { font-size: 11.5px; color: var(--text-3); line-height: 1.5; margin-top: 4px; }
+  .file-list-area { margin-top: 8px; }
+  /* 自定义滚动条圆角，避免 Win10 默认直角滚动条切断圆角视觉（v2.1.6） */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--r-sm); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+</style>
+</head>
+<body>
+<div class="app-shell">
+<div class="app">
+  <!-- 标题栏 -->
+  <!-- 拖拽区 class 只挂在 logo+名称上，按钮是兄弟节点，彻底脱离拖拽命中 -->
+  <div class="titlebar">
+    <div class="title-drag pywebview-drag-region">
+      <span class="logo">📄</span>
+      <span class="name">牛牛文档工具</span>
+      <span class="ver" id="version">v1.0.0</span>
+    </div>
+    <!-- 按钮阻止 mousedown 冒泡，双保险（即便仍在某些边缘场景被命中也不拖窗） -->
+    <button class="iconbtn" id="themeBtn" title="明暗切换" onmousedown="event.stopPropagation()">🌙</button>
+    <button class="sysbtn" title="最小化" id="btnMin" onmousedown="event.stopPropagation()"><svg class="i-min" viewBox="0 0 16 16"><line x1="3" y1="8" x2="13" y2="8"/></svg></button>
+    <button class="sysbtn" title="最大化" id="btnMax" onmousedown="event.stopPropagation()"><svg class="i-max" viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/></svg></button>
+    <button class="sysbtn close" title="关闭" id="btnClose" onmousedown="event.stopPropagation()"><svg class="i-close" viewBox="0 0 16 16"><line x1="3.5" y1="3.5" x2="12.5" y2="12.5"/><line x1="12.5" y1="3.5" x2="3.5" y2="12.5"/></svg></button>
+  </div>
+
+  <div class="body">
+    <!-- 侧边栏 -->
+    <div class="sidebar" id="sidebar">
+      <div class="side-top">
+        <div class="side-search-wrap" id="fnSearchWrap">
+          <input class="side-search" id="fnSearch" placeholder="搜索功能…">
+          <button class="search-clear" id="fnSearchClear" title="清空搜索" type="button" tabindex="-1" aria-label="清空搜索">
+            <svg viewBox="0 0 16 16"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="side-group-title">转换</div>
+      <div class="side-item active" data-id="convert"><span class="ic"><svg viewBox="0 0 16 16"><path d="M4 4h7M4 4l2-2M4 4l2 2M12 12H5M12 12l-2 2M12 12l-2-2"/></svg></span><span class="label">编码转换</span><span class="tag">CSV/TXT</span></div>
+
+      <div class="side-group-title">分割</div>
+      <div class="side-item" data-id="split_rows"><span class="ic"><svg viewBox="0 0 16 16"><path d="M2 5.5h12M2 10.5h12M8 5.5v5" stroke-dasharray="2 2"/></svg></span><span class="label">按行数分割</span><span class="tag">CSV</span></div>
+      <div class="side-item" data-id="split_date"><span class="ic"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1.5"/><path d="M2.5 6h11M5 2v2M11 2v2"/></svg></span><span class="label">按日期分割</span><span class="tag">CSV</span></div>
+
+      <div class="side-group-title">合并</div>
+      <div class="side-item" data-id="csv_merge"><span class="ic"><svg viewBox="0 0 16 16"><path d="M3 4l5 4-5 4M13 3v10"/></svg></span><span class="label">CSV 合并</span><span class="tag">快/删头/加名</span></div>
+      <div class="side-item" data-id="wb_merge"><span class="ic"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="5" height="7" rx="1"/><rect x="8.5" y="6" width="5" height="7" rx="1"/><path d="M5.5 10l5-1"/></svg></span><span class="label">多工作簿合并</span><span class="tag">Excel</span></div>
+      <div class="side-item" data-id="sheet_merge"><span class="ic"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1"/><path d="M2.5 7h11M2.5 11h11M6 3v10M10 3v10"/></svg></span><span class="label">单簿内表合并</span><span class="tag">Excel</span></div>
+
+      <div class="side-group-title">提取</div>
+      <div class="side-item" data-id="keyword"><span class="ic"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/></svg></span><span class="label">关键字提取</span><span class="tag">CSV</span></div>
+
+      <div class="side-group-title">拆分</div>
+      <div class="side-item" data-id="wide_split"><span class="ic"><svg viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" rx="1"/><path d="M6 4v8M10 4v8"/></svg></span><span class="label">超宽列拆分</span><span class="tag">Excel</span></div>
+      <div class="side-item" data-id="wb_split"><span class="ic"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="1"/><path d="M2.5 8h11M8 3v10"/></svg></span><span class="label">工作簿拆分为 CSV</span><span class="tag">Excel</span></div>
+    </div>
+
+    <!-- 工作区 -->
+    <div class="workspace">
+      <div id="ws-content"><!-- 动态注入 --></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+/* ---------- 状态 ---------- */
+var currentFunc = 'convert';
+var fileParams = {};  // 各功能的参数
+var isBusy = false;
+
+/* ---------- 渲染辅助 ---------- */
+/* extra：卡片标题右侧的补充说明（可选），如文件计数。*/
+function card(ct, body, extra){
+  return '<div class="card"><div class="ct">'+ct+(extra?'<span class="ct-extra">'+extra+'</span>':'')+'</div>'+body+'</div>';
+}
+function prow(inner){ return '<div class="prow">'+inner+'</div>'; }
+function entry(pl, id, val, w, ph){ return '<span class="pl">'+pl+'</span><input class="entry" id="'+id+'" value="'+val+'" placeholder="'+(ph||'')+'" style="min-width:'+w+'px" />'; }
+function segRow(pl, id, opts){
+  var btns = opts.map(function(o){ return '<button class="'+(o.on?'on':'')+'" data-val="'+o.t+'" data-seg-id="'+id+'">'+o.t+'</button>'; }).join('');
+  return '<span class="pl">'+pl+'</span><div class="seg" id="'+id+'">'+btns+'</div>';
+}
+function checkRow(id, toggles){
+  var chk = '<svg viewBox="0 0 12 12" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5l2.5 2.5 4.5-5"/></svg>';
+  return toggles.map(function(t){ return '<span class="checkbox '+(t.on?'on':'')+'" data-chk-id="'+id+'" data-val="'+t.t+'"><span class="box">'+chk+'</span> '+t.t+'</span>'; }).join('');
+}
+function hint(t){ return '<span class="ph">'+t+'</span>'; }
+
+/* ---------- 文件列表渲染 ---------- */
+function renderFileList(files){
+  if(!files || files.length === 0) return '';
+  var html = '<div class="file-list-area">';
+  files.forEach(function(f, i){
+    var dotClass = f.need ? 'need' : 'ok';
+    var enc = f.encoding || 'unknown';
+    if(f.has_bom) enc = 'UTF-8-BOM';
+    html += '<div class="file-chip"><span class="dot '+dotClass+'"></span>'+
+      '<span class="fname">'+f.name+'</span>'+
+      '<span class="meta">'+(f.size_str||'?')+' · '+enc+'</span>'+
+      '<span class="x" onclick="removeFile('+i+')">✕</span></div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function inputCard(note){
+  // v2.2.3: 文件数量状态移到卡片标题右侧（id=fileCount），与拖放区/文件列表同处
+  // 一卡、就近显示；底部执行条的 statusBar 只负责执行进度与结果。
+  return card('输入文件',
+    '<div class="dropzone" id="dropzone" onclick="selectFiles()"><span class="big">＋</span>拖拽文件到此处，或点击选择（支持多选'+(note?' · '+note:'')+'）</div>'+
+    '<button class="btn-ghost addbtn" onclick="selectFiles()">＋ 添加文件</button>'+
+    '<div id="fileListContainer"></div>',
+    '<span id="fileCount">待处理文件</span>');
+}
+
+function outputCard(){
+  return card('输出选项',
+    prow(entry('输出目录','outDir','',200,'源文件同目录（留空即用）')+'<button class="btn-ghost browse" onclick="selectDir()">浏览…</button>') +
+    prow(checkRow('outputOpts',[{t:'生成副本（保留原文件）',on:true},{t:'完成后打开文件夹',on:true}])));
+}
+
+function actionBar(label){
+  // v2.2.3: statusBar 只承载执行进度/结果（与进度条、执行按钮同属执行条）；
+  // 文件数量已移至输入文件卡片标题右侧（#fileCount）。
+  return '<div class="action-bar"><div class="progress"><div class="bar" id="progBar"></div></div>'+
+    '<span class="status" id="statusBar">就绪</span>'+
+    '<div class="right"><button class="btn-ghost" onclick="resetParams()">重置</button>'+
+    '<button class="btn-primary" id="execBtn" onclick="executeAction()">▶ '+label+'</button></div></div>';
+}
+
+function head(t, fmt, d){
+  return '<div class="ws-head"><div class="t">'+t+'</div><div class="fmt">'+fmt+'</div><div class="d">'+d+'</div></div>';
+}
+
+/* ---------- 9 个功能界面 ---------- */
+var FUNCS = {
+  convert: {
+    t:'编码转换', fmt:'CSV / TXT',
+    d:'批量将文件转成统一编码与分隔符，解决 Excel 打开乱码、跨系统不兼容问题。',
+    html: '<div class="ws-scroll">'+head('编码转换','CSV / TXT','批量将文件转成统一编码与分隔符，解决 Excel 打开乱码、跨系统不兼容问题。')+
+      '<div class="ws-grid"><div>'+inputCard('按每个文件独立转换')+outputCard()+'</div><div>'+
+      card('转换参数',
+        prow(segRow('输出编码','convEnc',[{t:'自动检测',on:true},{t:'UTF-8'},{t:'GBK'},{t:'UTF-8-BOM'}])) +
+        prow(segRow('分隔符','convDelim',[{t:'逗号 ,',on:true},{t:'制表符 \\t'},{t:'分号 ;'},{t:'竖线 |'}])) +
+        prow(segRow('保留表头','convHeader',[{t:'保留首行',on:true},{t:'不保留'}])) +
+        prow(segRow('超大文件','convLarge',[{t:'流式处理',on:true},{t:'完整读入内存'}])+hint('流式适合 GB 级文件，内存占用低'))) +
+      '</div></div></div>'+actionBar('开始转换')
+  },
+  split_rows: {
+    t:'按行数分割', fmt:'CSV',
+    d:'将大 CSV 按固定行数切成多个小文件，便于分批导入或传输。末片自动含表头 + 剩余数据。',
+    html: '<div class="ws-scroll">'+head('按行数分割','CSV','将大 CSV 按固定行数切成多个小文件，便于分批导入或传输。末片自动含表头 + 剩余数据。')+
+      '<div class="ws-grid"><div>'+inputCard('按每个文件独立分割')+outputCard()+'</div><div>'+
+      card('分割参数',
+        prow(entry('每个文件行数','srRows','1000000',160)) +
+        prow(segRow('表头处理','srHeader',[{t:'每段保留首行',on:true},{t:'仅首段保留'}])) +
+        prow(entry('输出命名','srNaming','原名_part01.csv · part02.csv',300)) +
+        prow(segRow('编码','srEnc',[{t:'UTF-8',on:true},{t:'GBK'}]))) +
+      '</div></div></div>'+actionBar('开始分割')
+  },
+  split_date: {
+    t:'按日期分割', fmt:'CSV',
+    d:'按指定日期列的值将 CSV 拆成多文件（按天 / 月 / 年），常用于按交易日、月份归档流水数据。',
+    html: '<div class="ws-scroll">'+head('按日期分割','CSV','按指定日期列的值将 CSV 拆成多文件（按天 / 月 / 年），常用于按交易日、月份归档流水数据。')+
+      '<div class="ws-grid"><div>'+inputCard('按每个文件独立分割')+outputCard()+'</div><div>'+
+      card('分割参数',
+        prow(entry('日期列名','sdCol','交易日期',160)) +
+        prow(segRow('分割粒度','sdGran',[{t:'按天',on:true},{t:'按月'},{t:'按年'}])) +
+        prow(entry('日期格式','sdFormat','YYYY-MM-DD',160)) +
+        prow(segRow('输出命名','sdNaming',[{t:'按日期值',on:true},{t:'原名+日期'}])) +
+        prow(segRow('编码','sdEnc',[{t:'UTF-8',on:true},{t:'GBK'}]))) +
+      '</div></div></div>'+actionBar('开始分割')
+  },
+  csv_merge: {
+    t:'CSV 合并', fmt:'快 / 删头 / 加名',
+    d:'将多个 CSV 合并为一个。三种模式：快速拷贝（直接首尾相接）、删除表头（去后续表头）、加文件名（每行标注来源）。',
+    html: '<div class="ws-scroll">'+head('CSV 合并','快 / 删头 / 加名','将多个 CSV 合并为一个。三种模式：快速拷贝（直接首尾相接）、删除表头（去后续表头）、加文件名（每行标注来源）。')+
+      '<div class="ws-grid"><div>'+inputCard('多个文件合并为一个')+outputCard()+'</div><div>'+
+      card('合并参数',
+        prow(segRow('合并模式','cmMode',[{t:'快速拷贝',on:true},{t:'删除表头'},{t:'加文件名'}])) +
+        prow(entry('输出文件名','cmOutput','合并结果.csv',200)) +
+        prow(segRow('排序','cmSort',[{t:'按文件名',on:true},{t:'按修改时间'},{t:'不排序'}])) +
+        '<div class="hint-row">快速拷贝 = 直接首尾相接；删除表头 = 去掉后续文件的表头行；加文件名 = 每行追加来源文件名列。</div>') +
+      '</div></div></div>'+actionBar('开始合并')
+  },
+  wb_merge: {
+    t:'多工作簿合并', fmt:'Excel',
+    d:'将多个 Excel 工作簿合并为一个。可按工作表名归并、按文件名生成独立 sheet，或横向拼接字段。',
+    html: '<div class="ws-scroll">'+head('多工作簿合并','Excel','将多个 Excel 工作簿合并为一个。可按工作表名归并、按文件名生成独立 sheet，或横向拼接字段。')+
+      '<div class="ws-grid"><div>'+inputCard('多选 .xlsx 工作簿')+outputCard()+'</div><div>'+
+      card('合并参数',
+        prow(segRow('合并方式','wmMode',[{t:'按工作表名',on:true},{t:'按文件名 sheet'},{t:'横向拼接'}])) +
+        prow(entry('输出文件名','wmOutput','合并工作簿.xlsx',200)) +
+        prow(segRow('表头','wmHeader',[{t:'各表保留',on:true},{t:'去重首表'}]))) +
+      '</div></div></div>'+actionBar('开始合并')
+  },
+  sheet_merge: {
+    t:'单簿内表合并', fmt:'Excel',
+    d:'将单个 Excel 工作簿内的多个工作表合并为一张表。可保留首个表头、合并去重或各自保留表头。',
+    html: '<div class="ws-scroll">'+head('单簿内表合并','Excel','将单个 Excel 工作簿内的多个工作表合并为一张表。可保留首个表头、合并去重或各自保留表头。')+
+      '<div class="ws-grid"><div>'+inputCard('选择单个 .xlsx')+outputCard()+'</div><div>'+
+      card('合并参数',
+        prow(segRow('表头策略','smHeader',[{t:'保留首个',on:true},{t:'合并去重'},{t:'各自保留'}])) +
+        prow(entry('输出表名','smSheetName','合并表',160)) +
+        prow(segRow('空行处理','smEmpty',[{t:'跳过',on:true},{t:'保留'}]))) +
+      '</div></div></div>'+actionBar('开始合并')
+  },
+  keyword: {
+    t:'关键字提取', fmt:'CSV',
+    d:'按关键字从 CSV 中提取匹配行，可指定匹配列与模式（包含 / 精确 / 正则），输出仅匹配行或追加标记列。',
+    html: '<div class="ws-scroll">'+head('关键字提取','CSV','按关键字从 CSV 中提取匹配行，可指定匹配列与模式（包含 / 精确 / 正则），输出仅匹配行或追加标记列。')+
+      '<div class="ws-grid"><div>'+inputCard('按每个文件独立提取')+outputCard()+'</div><div>'+
+      card('提取参数',
+        prow(entry('关键字','kwKeyword','退款',160)) +
+        prow(segRow('匹配列','kwCol',[{t:'全部列',on:true},{t:'指定列'}])) +
+        prow(entry('列名','kwColName','备注',140)) +
+        prow(segRow('匹配模式','kwMode',[{t:'包含',on:true},{t:'精确等于'},{t:'正则'}])) +
+        prow(segRow('输出','kwOutput',[{t:'仅匹配行',on:true},{t:'匹配行+标记列'}]))) +
+      '</div></div></div>'+actionBar('开始提取')
+  },
+  wb_split: {
+    t:'工作簿拆分为 CSV', fmt:'Excel',
+    d:'将 Excel 工作簿拆成多个 CSV。可按工作表拆分（每表一个文件），或按固定行数拆分超大表。',
+    html: '<div class="ws-scroll">'+head('工作簿拆分为 CSV','Excel','将 Excel 工作簿拆成多个 CSV。可按工作表拆分（每表一个文件），或按固定行数拆分超大表。')+
+      '<div class="ws-grid"><div>'+inputCard('选择 .xlsx（可多选）')+outputCard()+'</div><div>'+
+      card('拆分参数',
+        prow(segRow('拆分维度','wsDim',[{t:'按工作表',on:true},{t:'按行数'}])) +
+        prow(entry('行数(按行)','wsRows','100000',140)) +
+        prow(segRow('输出编码','wsEnc',[{t:'UTF-8',on:true},{t:'GBK'}])) +
+        prow(entry('命名规则','wsNaming','表名.csv',160))) +
+      '</div></div></div>'+actionBar('开始拆分')
+  },
+  wide_split: {
+    t:'超宽列拆分', fmt:'Excel',
+    d:'将列数过多的表按列拆分。可按固定列数切分，或按列名分组（如基础信息 / 扩展信息），输出为多 sheet 或多文件。',
+    html: '<div class="ws-scroll">'+head('超宽列拆分','Excel','将列数过多的表按列拆分。可按固定列数切分，或按列名分组（如基础信息 / 扩展信息），输出为多 sheet 或多文件。')+
+      '<div class="ws-grid"><div>'+inputCard('选择单个 .xlsx')+outputCard()+'</div><div>'+
+      card('拆分参数',
+        prow(entry('每表列数','wspCols','50',140)) +
+        prow(segRow('拆分策略','wspStrategy',[{t:'按列数',on:true},{t:'按列名分组'}])) +
+        prow(entry('组名','wspGroup','基础/扩展',160)) +
+        prow(segRow('输出','wspOutput',[{t:'多个 sheet',on:true},{t:'多个文件'}]))) +
+      '</div></div></div>'+actionBar('开始拆分')
+  }
+};
+
+/* ---------- 交互绑定 ---------- */
+function bindControls(){
+  document.querySelectorAll('#ws-content .seg button').forEach(function(b){
+    b.onclick = function(){
+      b.parentElement.querySelectorAll('button').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+    };
+  });
+  document.querySelectorAll('#ws-content .checkbox').forEach(function(t){
+    t.onclick = function(){ t.classList.toggle('on'); };
+  });
+  var dz = document.getElementById('dropzone');
+  if(dz){
+    // v2.2.0: drop 事件由 pywebview DOM 事件系统处理（获取完整文件路径），
+    // JS 端只负责 dragover 的 preventDefault（否则 drop 事件不会触发）。
+    dz.ondragover = function(e){ e.preventDefault(); dz.classList.add('dragover'); };
+    dz.ondragleave = function(e){ dz.classList.remove('dragover'); };
+    dz.ondrop = function(e){ e.preventDefault(); dz.classList.remove('dragover'); };
+  }
+}
+
+function selectFn(id){
+  var f = FUNCS[id];
+  if(!f) return;
+  currentFunc = id;
+  document.getElementById('ws-content').innerHTML = f.html;
+  document.querySelectorAll('.side-item').forEach(function(el){ el.classList.remove('active'); });
+  var active = document.querySelector('.side-item[data-id="'+id+'"]');
+  if(active) active.classList.add('active');
+  bindControls();
+  // v2.2.3: 面板重建后执行状态归零（statusBar 只反映当前功能的执行进度/结果）
+  setStatus('就绪');
+  // v2.2.0: 重新注册 DOM drop 事件（dropzone 元素已重建）
+  window.pywebview.api.register_drop_handler();
+  window.pywebview.api.get_file_list().then(function(res){ updateFileList(res); });
+}
+
+function selectFiles(){
+  var ftype = (currentFunc.indexOf('wb') >= 0 || currentFunc === 'wide_split') ? 'Excel' : 'CSV/TXT';
+  window.pywebview.api.select_files(ftype).then(function(res){ updateFileList(res); });
+}
+function selectDir(){
+  window.pywebview.api.select_dir().then(function(res){
+    if(res.dir){ var el = document.getElementById('outDir'); if(el) el.value = res.dir; }
+  });
+}
+function removeFile(idx){
+  window.pywebview.api.remove_file(idx).then(function(res){ updateFileList(res); });
+}
+function updateFileList(res){
+  var c = document.getElementById('fileListContainer');
+  if(!c) return;
+  var files = res.file_list || [];
+  c.innerHTML = files.length > 0 ? renderFileList(files) : '';
+  // v2.2.3: 文件数量更新到输入文件卡片标题右侧，不再占用执行条的 statusBar
+  var fc = document.getElementById('fileCount');
+  if(fc) fc.textContent = files.length > 0 ? ('待处理 ' + files.length + ' 个文件') : '待处理文件';
+}
+
+function getSegValue(id){
+  var el = document.getElementById(id);
+  if(!el) return null;
+  var onBtn = el.querySelector('button.on');
+  return onBtn ? onBtn.getAttribute('data-val') : null;
+}
+function getCheckValue(id){
+  var checks = document.querySelectorAll('[data-chk-id="'+id+'"]');
+  var vals = [];
+  checks.forEach(function(c){ if(c.classList.contains('on')) vals.push(c.getAttribute('data-val')); });
+  return vals;
+}
+function getInputValue(id){
+  var el = document.getElementById(id);
+  return el ? el.value : '';
+}
+
+function executeAction(){
+  if(isBusy) return;
+  var params = {};
+  // v2.2.1: outDir 输入框已改为空 value + placeholder（"源文件同目录（留空即用）"），
+  // 空值直接传给 Python 侧（out_dir 为空 → 输出到源文件同目录），无需再特判旧占位文案。
+  params.out_dir = getInputValue('outDir') || '';
+  var outOpts = getCheckValue('outputOpts') || [];
+  params.copy_mode = outOpts.indexOf('生成副本（保留原文件）') >= 0;
+  params.open_folder = outOpts.indexOf('完成后打开文件夹') >= 0;
+
+  var apiMethod = null;
+  switch(currentFunc){
+    case 'convert':
+      params.encoding = getSegValue('convEnc') || 'auto';
+      apiMethod = 'exec_convert';
+      break;
+    case 'split_rows':
+      params.max_rows = getInputValue('srRows') || '1000000';
+      params.encoding = getSegValue('srEnc') || 'utf-8';
+      apiMethod = 'exec_split_rows';
+      break;
+    case 'split_date':
+      params.date_col = getInputValue('sdCol');
+      var gran = getSegValue('sdGran') || '按天';
+      params.granularity = gran === '按天' ? 'day' : gran === '按月' ? 'month' : 'year';
+      params.encoding = getSegValue('sdEnc') || 'utf-8';
+      apiMethod = 'exec_split_date';
+      break;
+    case 'csv_merge':
+      var cmMode = getSegValue('cmMode') || '快速拷贝';
+      params.mode = cmMode === '快速拷贝' ? 'fast' : cmMode === '删除表头' ? 'remove' : 'filename';
+      params.output_name = getInputValue('cmOutput') || '合并结果.csv';
+      var cmSort = getSegValue('cmSort') || '按文件名';
+      params.sort = cmSort === '按文件名' ? 'name' : cmSort === '按修改时间' ? 'mtime' : 'none';
+      apiMethod = 'exec_csv_merge';
+      break;
+    case 'wb_merge':
+      var wmMode = getSegValue('wmMode') || '按工作表名';
+      params.mode = wmMode === '按工作表名' ? 'sheet_name' : 'filename';
+      params.output_name = getInputValue('wmOutput') || '合并工作簿.xlsx';
+      apiMethod = 'exec_wb_merge';
+      break;
+    case 'sheet_merge':
+      var smH = getSegValue('smHeader') || '保留首个';
+      params.header_strategy = smH === '保留首个' ? 'first' : smH === '合并去重' ? 'dedup' : 'each';
+      apiMethod = 'exec_sheet_merge';
+      break;
+    case 'keyword':
+      params.keyword = getInputValue('kwKeyword');
+      params.col_name = getInputValue('kwColName');
+      var kwCol = getSegValue('kwCol') || '全部列';
+      params.search_columns = (kwCol === '全部列') ? null : params.col_name;
+      var kwMode = getSegValue('kwMode') || '包含';
+      params.match_mode = kwMode === '包含' ? 'contains' : kwMode === '精确等于' ? 'equals' : 'regex';
+      apiMethod = 'exec_keyword';
+      break;
+    case 'wb_split':
+      params.encoding = getSegValue('wsEnc') || 'utf-8';
+      apiMethod = 'exec_wb_split';
+      break;
+    case 'wide_split':
+      params.cols = getInputValue('wspCols') || '50';
+      apiMethod = 'exec_wide_split';
+      break;
+  }
+  if(!apiMethod) return;
+  var btn = document.getElementById('execBtn');
+  if(btn) btn.disabled = true;
+  window.pywebview.api[apiMethod](JSON.stringify(params)).then(function(res){
+    if(!res.ok){ setStatus(res.msg || '操作失败'); if(btn) btn.disabled = false; }
+  }).catch(function(err){
+    setStatus('执行失败: ' + err); if(btn) btn.disabled = false;
+  });
+}
+
+function resetParams(){
+  // v2.2.1: 重置 = 恢复默认参数 + 清空已添加文件列表（完全回到初始状态）。
+  // 先调 Python 侧 clear_files() 清空文件列表，再重建当前功能面板（恢复全部默认参数，
+  // selectFn 内部会重新拉取文件列表并刷新状态栏为"待处理文件"）。
+  if (isBusy) return;   // 执行中禁止重置：worker 持有文件快照在跑，清列表会与进度状态互踩
+  window.pywebview.api.clear_files().then(function(){
+    selectFn(currentFunc);
+  }).catch(function(){ /* pywebview 未就绪时静默，避免 unhandled rejection */ });
+}
+
+window.onProgress = function(pct, action, fileName, rawPct){
+  var bar = document.getElementById('progBar');
+  if(bar){ bar.parentElement.classList.add('show'); bar.style.width = pct + '%'; }
+  setStatus(action + '中… ' + fileName + ' (' + rawPct + '%)');
+};
+window.onStatus = function(text){ setStatus(text); };
+window.onBusy = function(busy){
+  isBusy = busy;
+  var btn = document.getElementById('execBtn');
+  if(btn) btn.disabled = busy;
+  var app = document.querySelector('.app');
+  if(app) app.classList.toggle('busy', busy);
+};
+window.onDone = function(title, detail, okCount, failCount){
+  setStatus(detail);
+  var bar = document.getElementById('progBar');
+  if(bar){ bar.parentElement.classList.add('show'); bar.style.width = '100%'; }
+  var btn = document.getElementById('execBtn');
+  if(btn) btn.disabled = false;
+  showToast(title + '：' + detail);
+};
+// v2.2.0: pywebview DOM drop 事件回调（Python 侧获取完整路径后通知前端）
+window._pyapiDropUpdate = function(res){ updateFileList(res); };
+function showToast(msg){
+  var t = document.getElementById('toast');
+  if(!t){
+    t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function(){ t.classList.remove('show'); }, 4000);
+}
+
+function setStatus(text){
+  var sb = document.getElementById('statusBar');
+  if(sb) sb.textContent = text;
+}
+
+document.querySelectorAll('.side-item').forEach(function(el){
+  el.onclick = function(){ selectFn(el.dataset.id); };
+});
+function applySearchFilter(q){
+  document.querySelectorAll('.side-item').forEach(function(el){
+    el.style.display = (q==='' || el.textContent.toLowerCase().indexOf(q)>=0) ? '' : 'none';
+  });
+  document.querySelectorAll('.side-group-title').forEach(function(g){
+    var n = g.nextElementSibling, any = false;
+    while(n && n.classList.contains('side-item')){ if(n.style.display!=='none') any=true; n=n.nextElementSibling; }
+    g.style.display = any ? '' : 'none';
+  });
+}
+var fnSearch = document.getElementById('fnSearch');
+var fnWrap = document.getElementById('fnSearchWrap');
+fnSearch.addEventListener('input', function(e){
+  var q = e.target.value.trim().toLowerCase();
+  fnWrap.classList.toggle('has-value', e.target.value !== '');
+  applySearchFilter(q);
+});
+document.getElementById('fnSearchClear').addEventListener('click', function(){
+  fnSearch.value = '';
+  fnWrap.classList.remove('has-value');
+  applySearchFilter('');
+  fnSearch.focus();
+});
+fnSearch.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && fnSearch.value){
+    document.getElementById('fnSearchClear').click();
+  }
+});
+
+document.getElementById('themeBtn').onclick = function(){
+  var cur = document.documentElement.dataset.theme;
+  var next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  document.getElementById('themeBtn').textContent = next === 'dark' ? '☀️' : '🌙';
+  try { localStorage.setItem('theme', next); } catch(e) {}
+};
+// v2.1.9 启动时恢复主题
+try {
+  var savedTheme = localStorage.getItem('theme');
+  if(savedTheme){
+    document.documentElement.dataset.theme = savedTheme;
+    document.getElementById('themeBtn').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+  }
+} catch(e) {}
+document.getElementById('btnClose').onclick = function(){ window.pywebview.api.close_window(); };
+document.getElementById('btnMin').onclick   = function(){ window.pywebview.api.minimize_window(); };
+document.getElementById('btnMax').onclick   = function(){ window.pywebview.api.toggle_maximize(); };
+// 双击标题栏最大化/还原
+document.querySelector('.title-drag').addEventListener('dblclick', function(){
+  window.pywebview.api.toggle_maximize();
+});
+
+// pywebview API 在 pywebviewready 事件后才填充完毕，初始化调用必须等该事件，
+// 否则同步调用时函数尚未就绪会抛 TypeError。
+window.addEventListener('pywebviewready', function(){
+  if(window.pywebview.api && window.pywebview.api.get_version){
+    window.pywebview.api.get_version().then(function(res){
+      if(res.version){
+        var el = document.getElementById('version');
+        if(el) el.textContent = 'v' + res.version;
+      }
+    });
+  }
+  selectFn('convert');
+});
+
+/* v2.2.2 窗口交互统一软件模拟（拖动 + 缩放共用一个状态机）。
+   v2.2.1 两个遗留缺陷的根因：
+   ① 抖动：缩放增量用 clientX/clientY（视口坐标）——top/left 边缘缩放会移动窗口，
+      窗口一动视口坐标就突变，形成"窗口动→坐标变→再动"的反馈回路；
+   ② resize 后锁死：pywebview 自带 drag-region 拖拽与自建缩放并存，两套 JS 对鼠标
+      状态的认知失步（且其拖拽起点公式 clientX/screen 混用，与 SetWindowPos 直改
+      位置互相干扰）。
+   定案：拖动与缩放全部由本模块接管（pywebview 拖拽被 capture+stopPropagation 屏蔽，
+   .pywebview-drag-region 仅作选择器标记），增量统一改用 screenX/screenY（屏幕坐标
+   不随窗口移动变化，从数学上消除反馈回路）：
+   - 边缘 8px 按下 → 缩放态 → mousemove 逐帧 api.resize_step(dir, dx, dy)
+   - 标题栏拖拽区按下 → 拖动态 → mousemove 逐帧 api.move_step(dx, dy)
+   - mouseup / 窗口失焦 → 结束；setPointerCapture 保证拖出窗口仍持续收事件 */
+(function(){
+  var EDGE = 8;
+  var CURSORS = {left:'ew-resize', right:'ew-resize', top:'ns-resize',
+    bottom:'ns-resize', topleft:'nwse-resize', bottomright:'nwse-resize',
+    topright:'nesw-resize', bottomleft:'nesw-resize'};
+  var mode = null, dir = null, lastX = 0, lastY = 0;
+  function edgeOf(e){
+    var d = window.devicePixelRatio || 1;
+    var ez = Math.max(4, EDGE / d);
+    var w = window.innerWidth, h = window.innerHeight;
+    var x = e.clientX, y = e.clientY;
+    var l = x < ez, r = x >= w - ez, t = y < ez, b = y >= h - ez;
+    if (t && l) return 'topleft';   if (t && r) return 'topright';
+    if (b && l) return 'bottomleft';if (b && r) return 'bottomright';
+    if (l) return 'left'; if (r) return 'right';
+    if (t) return 'top';  if (b) return 'bottom';
+    return null;
+  }
+  document.addEventListener('mousedown', function(e){
+    if (e.button !== 0) return;
+    var d = edgeOf(e);
+    var dragEl = e.target && e.target.closest ? e.target.closest('.pywebview-drag-region') : null;
+    if (d) { mode = 'resize'; dir = d; }
+    else if (dragEl) { mode = 'move'; }
+    else return;
+    // capture 阶段拦截：既阻断按钮误触，也彻底屏蔽 pywebview 自带拖拽（onBodyMouseDown）
+    e.preventDefault(); e.stopPropagation();
+    lastX = e.screenX; lastY = e.screenY;   // 屏幕坐标起点（不随窗口移动变化）
+    document.body.style.cursor = mode === 'resize' ? CURSORS[dir] : 'move';
+    try { document.documentElement.setPointerCapture(e.pointerId); } catch(_){}
+  }, true);
+  document.addEventListener('mousemove', function(e){
+    if (!mode) {                                  // 悬停：只更新缩放光标
+      var d = edgeOf(e);
+      document.body.style.cursor = d ? CURSORS[d] : '';
+      return;
+    }
+    if (e.buttons !== 1) { end(); return; }
+    var dpr = window.devicePixelRatio || 1;
+    var dx = Math.round((e.screenX - lastX) * dpr);   // 物理像素增量（SetWindowPos 用物理坐标）
+    var dy = Math.round((e.screenY - lastY) * dpr);
+    if (!dx && !dy) return;
+    lastX = e.screenX; lastY = e.screenY;
+    var api = window.pywebview && window.pywebview.api;
+    if (!api) return;
+    if (mode === 'resize') api.resize_step(dir, dx, dy)
+      .catch(function(){ /* 窗口销毁中调用失败，静默忽略 */ });
+    else api.move_step(dx, dy)
+      .catch(function(){ });
+  });
+  function end(){
+    if (!mode) return;
+    mode = null; dir = null;
+    document.body.style.cursor = '';
+  }
+  document.addEventListener('mouseup', function(e){
+    if (!mode) return;
+    end();
+    try { document.documentElement.releasePointerCapture(e.pointerId); } catch(_){}
+  }, true);
+  window.addEventListener('blur', end);   // 失焦兜底防卡交互态
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# ===== Virtual environments =====
+.venv/
+venv/
+
+# ===== Build artifacts =====
+dist/
+build/
+*.spec
+
+# ===== EXE releases (not tracked in git) =====
+/*.exe
+releases/*.exe
+
+# ===== Test data =====
+*.csv
+
+# ===== OS / Editor =====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+
+# ===== Internal docs (not published to open-source repo) =====
+docs/PROJECT_MEMORY.md
+
+# ===== Asset backups (generated, not needed in repo) =====
+assets/icons/backup/

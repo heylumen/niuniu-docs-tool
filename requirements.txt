@@ -1,0 +1,6 @@
+# Runtime dependencies (tkinter is built into CPython for Windows)
+Pillow>=11.3.0
+PyInstaller>=6.0
+openpyxl>=3.1.0
+pywebview>=5.0
+pythonnet>=3.0

@@ -40,7 +40,7 @@ except ImportError:
 # 仅作为 read_version() 读取 VERSION 文件失败时的回退值（P-M4 漂移点）。
 # 窗口标题与前端版本号均取自 read_version()（见 Api.version 与 main()），不使用本常量拼标题。
 # ⚠️ 发版时须与根目录 VERSION 文件同步；门禁项 7（版本号扫描）会在不一致时告警。
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 
 def read_version():

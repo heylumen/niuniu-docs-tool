@@ -12,6 +12,13 @@ try:
 except ImportError:
     HAVE_OPENPYXL = False
 
+try:
+    import xlrd
+    HAVE_XLRD = True
+except ImportError:
+    xlrd = None
+    HAVE_XLRD = False
+
 
 def _cell_to_str(c):
     """将单元格值转为字符串，处理 datetime/float 特殊格式（#18）"""
@@ -25,6 +32,92 @@ def _cell_to_str(c):
         # 避免科学计数和精度尾巴
         return "%g" % c
     return str(c)
+
+
+def _check_xlrd():
+    if not HAVE_XLRD:
+        raise RuntimeError(
+            "无法读取 .xls 文件：缺少 xlrd 库，请运行 pip install xlrd 后重试"
+        )
+
+
+def _xls_to_openpyxl(xls_path):
+    """读取旧版 Excel 97-2003 (.xls, BIFF/OLE2) 文件，转为内存中的 openpyxl.Workbook。
+
+    openpyxl 自身不支持 .xls，故用 xlrd 读取后重建为统一结构，
+    供后续所有功能模块（合并/拆分/转 CSV）无差别处理。
+    日期单元格转为 datetime，布尔单元格转为 bool，错误单元格置空。
+    """
+    _check_xlrd()
+    try:
+        book = xlrd.open_workbook(xls_path)
+    except Exception as ex:
+        raise RuntimeError(
+            f"无法读取 .xls 文件（可能不是有效的 Excel 97-2003 文件或已损坏）: {ex}"
+        )
+    try:
+        datemode = book.datemode
+        out_wb = openpyxl.Workbook()
+        out_wb.remove(out_wb.active)
+        used = set()
+        for idx in range(book.nsheets):
+            src = book.sheet_by_index(idx)
+            base = (src.name or f"Sheet{idx + 1}")[:31]
+            name = base
+            n = 1
+            while name in used:
+                suf = f"_{n}"
+                name = base[:31 - len(suf)] + suf
+                n += 1
+            used.add(name)
+            ws = out_wb.create_sheet(title=name)
+            for r in range(src.nrows):
+                row = []
+                for c in range(src.ncols):
+                    cell = src.cell(r, c)
+                    val = cell.value
+                    if cell.ctype == xlrd.XL_CELL_DATE:
+                        try:
+                            val = xlrd.xldate.xldate_as_datetime(val, datemode)
+                        except Exception:
+                            # 日期序列号越界等异常：退回原始数值，避免整表读取失败
+                            val = cell.value
+                    elif cell.ctype == xlrd.XL_CELL_BOOLEAN:
+                        val = bool(val)
+                    elif cell.ctype == xlrd.XL_CELL_ERROR:
+                        val = None
+                    row.append(val)
+                ws.append(row)
+        return out_wb
+    finally:
+        try:
+            book.release_resources()
+        except Exception as ex:
+            print(f"[warn] 释放 .xls 工作簿资源失败: {ex}", file=sys.stderr)
+
+
+def load_workbook_any(path):
+    """统一加载 Excel 文件，兼容 .xlsx/.xlsm（openpyxl）与 .xls（xlrd 转内存 Workbook）。
+
+    返回对象支持 sheetnames / ws.iter_rows(values_only=True) / .close()，
+    与 openpyxl.Workbook 接口一致；调用方无需关心底层格式。
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".xls":
+        return _xls_to_openpyxl(path)
+    # .xlsx / .xlsm 及未知扩展名交给 openpyxl（会给出清晰报错）
+    try:
+        return openpyxl.load_workbook(path, read_only=True, data_only=True)
+    except Exception as ex:
+        msg = str(ex)
+        if "zip" in msg.lower() or "not a zip" in msg.lower():
+            raise RuntimeError(
+                f"无法读取 Excel 文件「{os.path.basename(path)}」"
+                f"（可能文件已损坏，或实为旧版 .xls 却以 .xlsx 命名）: {msg}"
+            )
+        raise RuntimeError(
+            f"无法读取 Excel 文件「{os.path.basename(path)}」（可能已损坏或格式不受支持）: {msg}"
+        )
 
 
 class ExcelWorker:
@@ -64,7 +157,7 @@ class ExcelWorker:
             for idx, fp in enumerate(file_paths):
                 if not os.path.exists(fp):
                     continue
-                wb = openpyxl.load_workbook(fp, read_only=True, data_only=True)
+                wb = load_workbook_any(fp)
                 try:
                     fname = Path(fp).stem
                     sheets = wb.sheetnames if all_sheets else wb.sheetnames[:1]
@@ -128,7 +221,7 @@ class ExcelWorker:
         wb = None
         out_wb = None
         try:
-            wb = openpyxl.load_workbook(src_path, read_only=True, data_only=True)
+            wb = load_workbook_any(src_path)
             total_sheets = len(wb.sheetnames)
 
             out_wb = openpyxl.Workbook()
@@ -217,7 +310,7 @@ class ExcelWorker:
 
         wb = None
         try:
-            wb = openpyxl.load_workbook(src_path, read_only=True, data_only=True)
+            wb = load_workbook_any(src_path)
             total_sheets = len(wb.sheetnames)
             parts = []
 
@@ -283,7 +376,7 @@ class ExcelWorker:
         wb = None
         out_wb = None
         try:
-            wb = openpyxl.load_workbook(src_path, read_only=True, data_only=True)
+            wb = load_workbook_any(src_path)
             out_wb = openpyxl.Workbook()
             out_wb.remove(out_wb.active)
 

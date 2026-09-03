@@ -366,7 +366,7 @@ def export_svg(path, pal=MAIN_PAL):
         mrx=G["mouth_rx"], mry=(G["mouth_up"] + G["mouth_dn"]) / 2.0,
         mouth=P["mouth"], mw=G["mouth_w"])
 
-    with open(path, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(svg)
     return path
 

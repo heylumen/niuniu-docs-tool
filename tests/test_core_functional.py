@@ -24,7 +24,7 @@ from core.convert import FileConverter
 from core.split import CsvSplitter
 from core.merge import CsvMerger
 from core.extract import CsvExtractor
-from core.sheet import ExcelWorker, HAVE_OPENPYXL
+from core.sheet import ExcelWorker, HAVE_OPENPYXL, HAVE_XLRD
 
 
 def _write_text(path, text, encoding="utf-8"):
@@ -271,6 +271,74 @@ class TestExcel(unittest.TestCase):
             import openpyxl
             wb = openpyxl.load_workbook(r["output"])
             self.assertGreaterEqual(len(wb.sheetnames), 2, "300 列应拆为 ≥2 片")
+
+
+@unittest.skipUnless(HAVE_OPENPYXL and HAVE_XLRD, "需要 openpyxl + xlrd 才能测试 .xls 读取")
+class TestExcelXls(unittest.TestCase):
+    """回归测试：旧版 Excel 97-2003 (.xls, BIFF) 须能被四个 Excel 后端正常读取与处理。
+
+    .xls 由 xlrd 读取并转换为内存 openpyxl.Workbook，用户无需区分 .xlsx / .xls。
+    """
+    FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                           "fixtures", "sample.xls")
+
+    def test_fixture_exists(self):
+        self.assertTrue(os.path.exists(self.FIXTURE), "测试夹具 sample.xls 缺失")
+
+    def test_merge_workbooks_with_xls(self):
+        with tempfile.TemporaryDirectory() as d:
+            # 复制两份夹具，验证 .xls 多簿合并
+            import shutil
+            a = os.path.join(d, "a.xls")
+            b = os.path.join(d, "b.xls")
+            shutil.copy2(self.FIXTURE, a)
+            shutil.copy2(self.FIXTURE, b)
+            out = os.path.join(d, "merged.xlsx")
+            r = ExcelWorker.merge_workbooks([a, b], out)
+            self.assertTrue(r["ok"], r)
+            import openpyxl
+            mwb = openpyxl.load_workbook(out)
+            # 两个来源各 2 个工作表 → 合并后 4 个
+            self.assertEqual(len(mwb.sheetnames), 4, mwb.sheetnames)
+
+    def test_merge_sheets_in_workbook_with_xls(self):
+        with tempfile.TemporaryDirectory() as d:
+            import shutil
+            src = os.path.join(d, "s.xls")
+            shutil.copy2(self.FIXTURE, src)
+            out = os.path.join(d, "sm.xlsx")
+            r = ExcelWorker.merge_sheets_in_workbook(src, out)
+            self.assertTrue(r["ok"], r)
+            import openpyxl
+            wb = openpyxl.load_workbook(out)
+            ws = wb["合并结果"]
+            rows = list(ws.iter_rows(values_only=True))
+            self.assertEqual(rows[0][-1], "来源工作表", "应有来源工作表列")
+            # 仅表头一致的工作表被合并：销售数据 3 行 + 1 表头 = 4 行
+            # （库存表表头不同，按逻辑跳过）
+            self.assertEqual(len(rows), 4, rows)
+
+    def test_workbook_to_csvs_with_xls(self):
+        with tempfile.TemporaryDirectory() as d:
+            import shutil
+            src = os.path.join(d, "w.xls")
+            shutil.copy2(self.FIXTURE, src)
+            r = ExcelWorker.workbook_to_csvs(src)
+            self.assertTrue(r["ok"], r)
+            self.assertEqual(len(r["parts"]), 2, "每个工作表一个 CSV")
+            for p in r["parts"]:
+                self.assertTrue(os.path.exists(p) and p.endswith(".csv"))
+
+    def test_split_wide_worksheet_with_xls(self):
+        with tempfile.TemporaryDirectory() as d:
+            import shutil
+            src = os.path.join(d, "wide.xls")
+            shutil.copy2(self.FIXTURE, src)
+            r = ExcelWorker.split_wide_worksheet(src, threshold=256)
+            self.assertTrue(r["ok"], r)
+            import openpyxl
+            wb = openpyxl.load_workbook(r["output"])
+            self.assertGreaterEqual(len(wb.sheetnames), 1)
 
 
 if __name__ == "__main__":

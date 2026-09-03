@@ -89,6 +89,7 @@ def build(py, version):
         "--collect-all", "pythonnet",
         "--collect-all", "clr_loader",
         "--collect-all", "openpyxl",
+        "--collect-all", "xlrd",
         # OPT-1: 裁剪跨平台后端（仅用 winforms + edgechromium）
         "--exclude-module", "webview.platforms.gtk",
         "--exclude-module", "webview.platforms.cocoa",

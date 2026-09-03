@@ -32,5 +32,6 @@ Thumbs.db
 # ===== Internal docs (not published to open-source repo) =====
 docs/PROJECT_MEMORY.md
 
-# ===== Asset backups (generated, not needed in repo) =====
+# ===== Generated assets (not needed in repo) =====
 assets/icons/backup/
+assets/icons/preview/

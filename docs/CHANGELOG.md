@@ -4,6 +4,23 @@
 
 格式遵循 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 规范，版本号采用 [语义化版本](https://semver.org/spec/v2.0.0.html) 约定。
 
+## [1.0.1] - 2026-09-03
+
+### 新增功能
+
+- **支持 Excel 97-2003（.xls）格式**：四大 Excel 工具（多工作簿合并 / 单簿内表合并 / 拆为 CSV / 超宽列拆分）现在可直接读取并处理 `.xls` 文件，与 `.xlsx` 无差别使用。
+  - 技术说明：此前 Excel 读取仅依赖 `openpyxl`（只支持 `.xlsx/.xlsm`），`.xls` 为 BIFF/OLE2 旧格式，会在读取时抛出 `BadZipFile` 异常并被泛型异常吞掉而静默失败。本次新增 `xlrd` 依赖与 `load_workbook_any()` 统一加载器，`.xls` 经 `xlrd` 读入后转换为内存中的 `openpyxl.Workbook`（日期→datetime、布尔→bool、错误单元格→空），四个后端统一处理。
+  - 新增 `tests/fixtures/sample.xls` 测试夹具与 `TestExcelXls` 回归测试（5 项）覆盖上述四个后端。
+
+### 优化
+
+- **异常提示与界面文案**：`.xls` 读取失败给出明确中文提示（“无法读取 .xls 文件（可能不是有效的 Excel 97-2003 文件或已损坏）”）；`.xlsx` 损坏或实为 .xls 误命名时提示“可能文件已损坏，或实为旧版 .xls 却以 .xlsx 命名”；入口层与文件选择标签补充 `.xls` 支持说明。
+
+### 技术细节
+
+- `requirements.txt` 新增 `xlrd>=2.0`；`build.py` 增加 `--collect-all xlrd` 确保打包包含。
+- 单元测试总数由 85 项增至 90 项（新增 5 项 .xls 回归测试），代码门禁保持通过（EXIT=0）。
+
 ## [1.0.0] - 2026-08-30
 
 首个公开版本。

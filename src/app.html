@@ -468,7 +468,7 @@ var FUNCS = {
     t:'多工作簿合并', fmt:'Excel',
     d:'将多个 Excel 工作簿合并为一个。可按工作表名归并、按文件名生成独立 sheet，或横向拼接字段。',
     html: '<div class="ws-scroll">'+head('多工作簿合并','Excel','将多个 Excel 工作簿合并为一个。可按工作表名归并、按文件名生成独立 sheet，或横向拼接字段。')+
-      '<div class="ws-grid"><div>'+inputCard('多选 .xlsx 工作簿')+outputCard()+'</div><div>'+
+      '<div class="ws-grid"><div>'+inputCard('多选 .xlsx / .xls 工作簿')+outputCard()+'</div><div>'+
       card('合并参数',
         prow(segRow('合并方式','wmMode',[{t:'按工作表名',on:true},{t:'按文件名 sheet'},{t:'横向拼接'}])) +
         prow(entry('输出文件名','wmOutput','合并工作簿.xlsx',200)) +
@@ -479,7 +479,7 @@ var FUNCS = {
     t:'单簿内表合并', fmt:'Excel',
     d:'将单个 Excel 工作簿内的多个工作表合并为一张表。可保留首个表头、合并去重或各自保留表头。',
     html: '<div class="ws-scroll">'+head('单簿内表合并','Excel','将单个 Excel 工作簿内的多个工作表合并为一张表。可保留首个表头、合并去重或各自保留表头。')+
-      '<div class="ws-grid"><div>'+inputCard('选择单个 .xlsx')+outputCard()+'</div><div>'+
+      '<div class="ws-grid"><div>'+inputCard('选择单个 .xlsx / .xls')+outputCard()+'</div><div>'+
       card('合并参数',
         prow(segRow('表头策略','smHeader',[{t:'保留首个',on:true},{t:'合并去重'},{t:'各自保留'}])) +
         prow(entry('输出表名','smSheetName','合并表',160)) +
@@ -503,7 +503,7 @@ var FUNCS = {
     t:'工作簿拆分为 CSV', fmt:'Excel',
     d:'将 Excel 工作簿拆成多个 CSV。可按工作表拆分（每表一个文件），或按固定行数拆分超大表。',
     html: '<div class="ws-scroll">'+head('工作簿拆分为 CSV','Excel','将 Excel 工作簿拆成多个 CSV。可按工作表拆分（每表一个文件），或按固定行数拆分超大表。')+
-      '<div class="ws-grid"><div>'+inputCard('选择 .xlsx（可多选）')+outputCard()+'</div><div>'+
+      '<div class="ws-grid"><div>'+inputCard('选择 .xlsx / .xls（可多选）')+outputCard()+'</div><div>'+
       card('拆分参数',
         prow(segRow('拆分维度','wsDim',[{t:'按工作表',on:true},{t:'按行数'}])) +
         prow(entry('行数(按行)','wsRows','100000',140)) +
@@ -515,7 +515,7 @@ var FUNCS = {
     t:'超宽列拆分', fmt:'Excel',
     d:'将列数过多的表按列拆分。可按固定列数切分，或按列名分组（如基础信息 / 扩展信息），输出为多 sheet 或多文件。',
     html: '<div class="ws-scroll">'+head('超宽列拆分','Excel','将列数过多的表按列拆分。可按固定列数切分，或按列名分组（如基础信息 / 扩展信息），输出为多 sheet 或多文件。')+
-      '<div class="ws-grid"><div>'+inputCard('选择单个 .xlsx')+outputCard()+'</div><div>'+
+      '<div class="ws-grid"><div>'+inputCard('选择单个 .xlsx / .xls')+outputCard()+'</div><div>'+
       card('拆分参数',
         prow(entry('每表列数','wspCols','50',140)) +
         prow(segRow('拆分策略','wspStrategy',[{t:'按列数',on:true},{t:'按列名分组'}])) +

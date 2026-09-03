@@ -381,7 +381,7 @@ class BusinessApiMixin:
         xlsx_files = [f for f in self.file_list
                       if Path(f["path"]).suffix.lower() in (".xlsx", ".xls")]
         if not xlsx_files:
-            return self._result(False, "请添加 .xlsx Excel 文件")
+            return self._result(False, "请添加 .xlsx / .xls Excel 文件")
         self._set_busy(True)
         threading.Thread(target=self._sheet_merge_worker,
                          args=(xlsx_files, add_source, out_dir),
@@ -484,7 +484,7 @@ class BusinessApiMixin:
         xlsx_files = [f for f in self.file_list
                       if Path(f["path"]).suffix.lower() in (".xlsx", ".xls")]
         if not xlsx_files:
-            return self._result(False, "请添加 .xlsx Excel 文件")
+            return self._result(False, "请添加 .xlsx / .xls Excel 文件")
         self._set_busy(True)
         threading.Thread(target=self._wb_split_worker,
                          args=(xlsx_files, out_dir, target_enc),
@@ -545,7 +545,7 @@ class BusinessApiMixin:
         xlsx_files = [f for f in self.file_list
                       if Path(f["path"]).suffix.lower() in (".xlsx", ".xls")]
         if not xlsx_files:
-            return self._result(False, "请添加 .xlsx Excel 文件")
+            return self._result(False, "请添加 .xlsx / .xls Excel 文件")
         self._set_busy(True)
         threading.Thread(target=self._wide_split_worker,
                          args=(xlsx_files, cols, out_dir),
